@@ -1,0 +1,735 @@
+{
+  "generated_at": "2026-11-04T16:53:55+08:00",
+  "timezone": "Asia/Shanghai",
+  "paper": {
+    "title": "I Know What You Asked: Prompt Leakage via KV-Cache Sharing in Multi-Tenant LLM Serving",
+    "authors": "Guanlong Wu, Zheng Zhang, Yao Zhang, Weili Wang, Jianyu Niu, Ye Wu, Yinqian Zhang",
+    "venue": "NDSS 2025",
+    "doi": "10.14722/ndss.2025.241772",
+    "stack": "SGLang + Llama-2-13B，单卡 A100 80GB",
+    "summary_rates": {
+      "whole_prompt": {
+        "sr": "95%",
+        "rr": "81%"
+      },
+      "input": {
+        "sr": "99%",
+        "rr": "99%"
+      },
+      "template": {
+        "sr": "98%",
+        "rr": "91%"
+      }
+    }
+  },
+  "reproduction": {
+    "server": "本仓库的 radix tree + LPM/FCFS/隔离/M 分桶调度模型",
+    "not_run": "没有 GPU，没有跑 SGLang 或 vLLM，没有复现论文 Table II 的端到端数字"
+  },
+  "figure6": {
+    "victim": [
+      "Imagine",
+      "you",
+      "are",
+      "an",
+      "IT",
+      "expert"
+    ],
+    "prefix": [
+      "Imagine",
+      "you",
+      "are"
+    ],
+    "truth": "an",
+    "dummy": "%",
+    "max_batch": 4,
+    "hit": {
+      "hit_token": "an",
+      "promoted": [
+        "an"
+      ],
+      "unique_hit": true,
+      "order": [
+        "前哑元",
+        "前哑元",
+        "前哑元",
+        "前哑元",
+        "候选[an]",
+        "后哑元",
+        "后哑元",
+        "后哑元",
+        "后哑元",
+        "候选[a]",
+        "候选[the]"
+      ],
+      "batches": [
+        [
+          "hit-pre0",
+          "hit-pre1",
+          "hit-pre2",
+          "hit-pre3"
+        ],
+        [
+          "hit-c0",
+          "hit-post0",
+          "hit-post1",
+          "hit-post2"
+        ],
+        [
+          "hit-post3",
+          "hit-c1",
+          "hit-c2"
+        ]
+      ],
+      "batch_match_lens": [
+        [
+          3,
+          3,
+          3,
+          3
+        ],
+        [
+          4,
+          4,
+          4,
+          4
+        ],
+        [
+          4,
+          3,
+          3
+        ]
+      ],
+      "batch_priorities": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          4,
+          4,
+          4
+        ],
+        [
+          4,
+          3,
+          3
+        ]
+      ],
+      "n_requests": 11,
+      "n_candidate_requests": 3,
+      "n_dummy_requests": 8
+    },
+    "miss": {
+      "hit_token": null,
+      "promoted": [],
+      "unique_hit": false,
+      "order": [
+        "前哑元",
+        "前哑元",
+        "前哑元",
+        "前哑元",
+        "后哑元",
+        "后哑元",
+        "后哑元",
+        "后哑元",
+        "候选[a]",
+        "候选[the]",
+        "候选[IT]"
+      ],
+      "batches": [
+        [
+          "miss-pre0",
+          "miss-pre1",
+          "miss-pre2",
+          "miss-pre3"
+        ],
+        [
+          "miss-post0",
+          "miss-post1",
+          "miss-post2",
+          "miss-post3"
+        ],
+        [
+          "miss-c0",
+          "miss-c1",
+          "miss-c2"
+        ]
+      ],
+      "batch_match_lens": [
+        [
+          3,
+          3,
+          3,
+          3
+        ],
+        [
+          4,
+          4,
+          4,
+          4
+        ],
+        [
+          3,
+          3,
+          3
+        ]
+      ],
+      "batch_priorities": [
+        [
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          4,
+          4,
+          4,
+          4
+        ],
+        [
+          3,
+          3,
+          3
+        ]
+      ],
+      "n_requests": 11,
+      "n_candidate_requests": 3,
+      "n_dummy_requests": 8
+    }
+  },
+  "scenario2": {
+    "gender": {
+      "template": "性别=",
+      "truth": "男",
+      "alphabet": [
+        "男",
+        "女",
+        "其他"
+      ],
+      "probe": {
+        "hit_token": "男",
+        "promoted": [
+          "男"
+        ],
+        "unique_hit": true,
+        "order": [
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "候选[男]",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "候选[女]",
+          "候选[其他]"
+        ],
+        "batches": [
+          [
+            "g-pre0",
+            "g-pre1",
+            "g-pre2",
+            "g-pre3"
+          ],
+          [
+            "g-c0",
+            "g-post0",
+            "g-post1",
+            "g-post2"
+          ],
+          [
+            "g-post3",
+            "g-c1",
+            "g-c2"
+          ]
+        ],
+        "batch_match_lens": [
+          [
+            2,
+            2,
+            2,
+            2
+          ],
+          [
+            3,
+            3,
+            3,
+            3
+          ],
+          [
+            3,
+            2,
+            2
+          ]
+        ],
+        "batch_priorities": [
+          [
+            0,
+            0,
+            0,
+            0
+          ],
+          [
+            3,
+            3,
+            3,
+            3
+          ],
+          [
+            3,
+            2,
+            2
+          ]
+        ],
+        "n_requests": 11,
+        "n_candidate_requests": 3,
+        "n_dummy_requests": 8
+      }
+    },
+    "account": {
+      "template": "账号后三位",
+      "truth": "705",
+      "recovered": "705",
+      "stopped_reason": "recovered",
+      "requests_total": 60,
+      "requests_candidate": 20,
+      "requests_dummy": 40,
+      "per_token_rounds": [
+        2,
+        1,
+        2
+      ],
+      "steps": [
+        {
+          "truth": 7,
+          "recovered": 7,
+          "rounds": 2,
+          "requests": 24,
+          "batches": [
+            {
+              "candidates": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "hit": null,
+              "n_requests": 12
+            },
+            {
+              "candidates": [
+                4,
+                5,
+                6,
+                7
+              ],
+              "hit": 7,
+              "n_requests": 12
+            }
+          ]
+        },
+        {
+          "truth": 0,
+          "recovered": 0,
+          "rounds": 1,
+          "requests": 12,
+          "batches": [
+            {
+              "candidates": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "hit": 0,
+              "n_requests": 12
+            }
+          ]
+        },
+        {
+          "truth": 5,
+          "recovered": 5,
+          "rounds": 2,
+          "requests": 24,
+          "batches": [
+            {
+              "candidates": [
+                0,
+                1,
+                2,
+                3
+              ],
+              "hit": null,
+              "n_requests": 12
+            },
+            {
+              "candidates": [
+                4,
+                5,
+                6,
+                7
+              ],
+              "hit": 5,
+              "n_requests": 12
+            }
+          ]
+        }
+      ],
+      "note": "总请求 60 = 5 次探测 × (4 前哑元 + 4 后哑元 + 4 候选)。论文 BMI 的约 60 次是另一套提示和另一套计数，这里只说明小字母表暴力枚举的请求量可以很小。"
+    }
+  },
+  "defenses": {
+    "rows": [
+      {
+        "name": "LPM，M=1（论文默认）",
+        "leaked": true,
+        "unique_hit": true,
+        "promoted": [
+          "IT"
+        ],
+        "order": [
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "候选[IT]",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "候选[a]",
+          "候选[the]"
+        ],
+        "condition_broken": "三条条件都在，攻击成立。"
+      },
+      {
+        "name": "按租户隔离 radix tree（cache_salt）",
+        "leaked": false,
+        "unique_hit": false,
+        "promoted": [],
+        "order": [
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "候选[IT]",
+          "候选[a]",
+          "候选[the]"
+        ],
+        "condition_broken": "条件 2 的共享被拆掉：攻击者的 radix tree 里没有受害者前缀，LPM 无从比较。"
+      },
+      {
+        "name": "FCFS",
+        "leaked": false,
+        "unique_hit": false,
+        "promoted": [
+          "IT",
+          "a",
+          "the"
+        ],
+        "order": [
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "候选[IT]",
+          "候选[a]",
+          "候选[the]",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "后哑元"
+        ],
+        "condition_broken": "条件 2 的顺序比特被拆掉：完成顺序等于到达顺序，多个候选同时排在后哑元前面，检测器拒绝把它当成命中。"
+      },
+      {
+        "name": "LPM 分桶 M=2，前缀长度 4，+1 不跨桶",
+        "leaked": false,
+        "unique_hit": false,
+        "promoted": [
+          "IT",
+          "a",
+          "the"
+        ],
+        "order": [
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "候选[IT]",
+          "候选[a]",
+          "候选[the]",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "后哑元"
+        ],
+        "condition_broken": "条件 2 被削弱：差 1 个 token 不再改变优先级。缓存仍然共享，只是这一跳的顺序不再泄露。"
+      },
+      {
+        "name": "LPM M=2 但前缀长度 3，整除边界仍泄漏",
+        "leaked": true,
+        "unique_hit": true,
+        "promoted": [
+          "an"
+        ],
+        "order": [
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "前哑元",
+          "候选[an]",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "后哑元",
+          "候选[a]",
+          "候选[the]"
+        ],
+        "condition_broken": "没有打断。match_len // M 在 L ≡ M-1 (mod M) 时，+1 仍会升档。"
+      },
+      {
+        "name": "罕见 token：真值不在本地候选列表",
+        "leaked": false,
+        "unique_hit": false,
+        "promoted": [],
+        "stopped_reason": "no_unique_hit",
+        "requests": 12,
+        "condition_broken": "侧信道还在，但是候选生成失败。攻击在这个 token 停下，后面的前缀也断了。"
+      },
+      {
+        "name": "KV 被驱逐（容量只够受害者自己）",
+        "leaked": false,
+        "unique_hit": false,
+        "promoted": [],
+        "evictions": 2,
+        "control_hit": 4,
+        "followup_hit": null,
+        "condition_broken": "条件 1 被拆掉：受害者前缀已经不在 radix tree 里，下一次探测没有唯一命中。"
+      }
+    ],
+    "eviction": {
+      "row": {
+        "name": "KV 被驱逐（容量只够受害者自己）",
+        "leaked": false,
+        "unique_hit": false,
+        "promoted": [],
+        "evictions": 2,
+        "control_hit": 4,
+        "followup_hit": null,
+        "condition_broken": "条件 1 被拆掉：受害者前缀已经不在 radix tree 里，下一次探测没有唯一命中。"
+      },
+      "control_hit": 4,
+      "evicting_hit": null,
+      "followup_hit": null,
+      "evictions_when_victim_dropped": 2,
+      "match_len_after_evicting_probe": 4,
+      "victim_len": 5
+    }
+  },
+  "qwen": {
+    "loaded": true,
+    "model": "/workspace/models/Qwen3-4B-Base.Q4_K_M.gguf",
+    "role": "candidate generator only; the server is the radix/LPM scheduler",
+    "n_ctx": 256,
+    "quantization": "Q4_K_M GGUF",
+    "selection_rule": "在三句里选用第一个「被扣住的首 token 落在 top-8」的句子；如果都没有，就用第一句并记录失败。",
+    "survey": [
+      {
+        "text": "The capital of France is Paris.",
+        "known": "The capital of France is",
+        "secret": " Paris.",
+        "pieces": [
+          "The",
+          " capital",
+          " of",
+          " France",
+          " is",
+          " Paris",
+          "."
+        ],
+        "first_in_top8": true,
+        "per_token_topk": [
+          {
+            "truth": " Paris",
+            "truth_id": 12095,
+            "in_top8": true,
+            "top8": [
+              " Paris",
+              " located",
+              " ____",
+              " what",
+              " ______",
+              " in",
+              " __",
+              "?\n"
+            ]
+          },
+          {
+            "truth": ".",
+            "truth_id": 13,
+            "in_top8": true,
+            "top8": [
+              ".",
+              ".\n",
+              ",",
+              ".\n\n",
+              " and",
+              "\n",
+              "\n\n",
+              "?\n\n"
+            ]
+          }
+        ]
+      },
+      {
+        "text": "北京是中国的首都。",
+        "known": "北京是中国的",
+        "secret": "首都。",
+        "pieces": [
+          "北京",
+          "是中国",
+          "的",
+          "首都",
+          "。"
+        ],
+        "first_in_top8": true,
+        "per_token_topk": [
+          {
+            "truth": "首都",
+            "truth_id": 106114,
+            "in_top8": true,
+            "top8": [
+              "首都",
+              "什么",
+              "首",
+              "哪个",
+              "古",
+              "____",
+              "（",
+              "哪"
+            ]
+          },
+          {
+            "truth": "。",
+            "truth_id": 1773,
+            "in_top8": true,
+            "top8": [
+              "，",
+              ",",
+              "。",
+              "和",
+              "，在",
+              "，请",
+              "。\n",
+              "吗"
+            ]
+          }
+        ]
+      },
+      {
+        "text": "To be or not to be.",
+        "known": "To be or not to",
+        "secret": " be.",
+        "pieces": [
+          "To",
+          " be",
+          " or",
+          " not",
+          " to",
+          " be",
+          "."
+        ],
+        "first_in_top8": true,
+        "per_token_topk": [
+          {
+            "truth": " be",
+            "truth_id": 387,
+            "in_top8": true,
+            "top8": [
+              " be",
+              " Be",
+              " ",
+              " have",
+              " exist",
+              " ______",
+              " not",
+              " become"
+            ]
+          },
+          {
+            "truth": ".",
+            "truth_id": 13,
+            "in_top8": true,
+            "top8": [
+              ",",
+              ":",
+              " is",
+              "?",
+              "\n\n",
+              ".",
+              "\n",
+              " –"
+            ]
+          }
+        ]
+      }
+    ],
+    "chosen_text": "The capital of France is Paris.",
+    "known": "The capital of France is",
+    "secret": " Paris.",
+    "recovered": " Paris.",
+    "exact": true,
+    "stopped_reason": "recovered",
+    "requests": 32,
+    "steps": [
+      {
+        "truth": " Paris",
+        "recovered": " Paris",
+        "truth_in_first_batch": true,
+        "first_batch": [
+          " Paris",
+          " located",
+          " ____",
+          " what",
+          " ______",
+          " in",
+          " __",
+          "?\n"
+        ],
+        "rounds": 1,
+        "requests": 16,
+        "hit": true
+      },
+      {
+        "truth": ".",
+        "recovered": ".",
+        "truth_in_first_batch": true,
+        "first_batch": [
+          ".",
+          ",",
+          ".\n",
+          ".\n\n",
+          " and",
+          "\n",
+          "\n\n",
+          "?\n"
+        ],
+        "rounds": 1,
+        "requests": 16,
+        "hit": true
+      }
+    ]
+  },
+  "qwen_measured_at": "2026-11-04T16:53:41+08:00"
+}
