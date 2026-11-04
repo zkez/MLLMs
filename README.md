@@ -2,15 +2,7 @@
 
 今天要讲的不是又一条越狱提示词。Guanlong Wu、Zheng Zhang、Yao Zhang、Weili Wang、Jianyu Niu、Ye Wu、Yinqian Zhang 在 NDSS 2025 的论文是 *I Know What You Asked: Prompt Leakage via KV-Cache Sharing in Multi-Tenant LLM Serving*，攻击名叫 PROMPTPEEK，DOI [10.14722/ndss.2025.241772](https://dx.doi.org/10.14722/ndss.2025.241772)。他们的测量跑在 SGLang 上，模型是 Llama-2-13B，卡是一张 A100 80GB。
 
-我们这次没有接上那张 4090。在这台云虚拟机里执行 `ssh -vvv -o ConnectTimeout=20 4090`，OpenSSH 把主机名解析成 `0.0.15.250`，然后：
-
-```text
-ssh: connect to host 0.0.15.250 port 22: Connection timed out
-```
-
-退出码 255。没有密码提示，也没有密钥交换。`/etc/hosts` 里没有 `4090`，对 `198.18.0.53` 的直接查询是 NXDOMAIN，登录 shell 里同样解析到 `0.0.15.250`，没有 `SSH_ASKPASS`，没有 `sshpass`，没有 `~/.ssh/config`。你自己的终端能直接 `ssh 4090`，那是另一条网络路径；这台云 VM 上没有那份配置。所以实验留在本机。远程 `/workspace/junk/junk/` 里的基模权重没有被改动，也没有被拷过来。
-
-本地候选模型是已经放在 `models/` 里的 Qwen3-4B-Base，量化 Q4_K_M，GGUF。这台机器没有 GPU。`n_ctx=256`，`n_threads=4`，`n_gpu_layers=0`。Qwen 只负责提出下一个 token。调度器是我们写的 radix tree 加最长前缀匹配，不是 SGLang。
+这台机器没有 GPU，也没有 SGLang / vLLM。本地候选模型是 `models/` 里的 Qwen3-4B-Base，量化 Q4_K_M，GGUF，`llama-cpp-python` 0.3.36，CPU，`n_ctx=256`，4 个线程。Qwen 只负责提出下一个 token。调度器是我们写的 radix tree 加最长前缀匹配，不是 SGLang。
 
 ## 先把通道说清楚：看的是顺序
 
@@ -24,7 +16,7 @@ ssh: connect to host 0.0.15.250 port 22: Connection timed out
 
 命中的时候，那个正确候选和后哑元的匹配长度一样，都比纯前缀多一个 token，而且候选比后哑元先到，于是它夹在两批哑元中间。其余候选匹配更短，排到所有后哑元后面。检测器只认一种图案：恰好一个候选排在后哑元前面。全中、全不中、或者好几个一起提前，都不算唯一命中。
 
-这和后来那些「看延迟」的前缀缓存计时攻击不是同一件事。计时通道量的是一次请求少算了多少毫秒。PROMPTPEEK 量的是 LPM 把完成顺序改成了没有改成「恰好一个候选插队」。把调度改成先来先服务，延迟差可能还在，这条顺序比特已经没了。
+这篇论文的观测是完成顺序。后来的 Auditing Prompt Caching 和 SafeKV 看的是另一位：缓存命中会少算一段 prefill，延迟分布仍然可能露出 1 bit。把调度改成先来先服务，PROMPTPEEK 这条顺序比特没有了，时间差可以还在。报告结尾如果有人问「改成 FCFS 是不是就安全了」，把这两条通道分开答。
 
 ## 我们打印出来的图 6
 
@@ -48,7 +40,9 @@ ssh: connect to host 0.0.15.250 port 22: Connection timed out
 
 ## 论文的三个场景，和我们没有重跑的那些比率
 
-论文按攻击者事先知道多少，分了三个场景。下面这三组是他们在 Llama-2-13B、A100 80GB 上、跨 cloze / role / instruction 三个数据集的平均，写在 Section VI 的总结里。成功率 SR 是整段被完整抽出的比例，还原比例 RR 是抽出的长度除以总长度。这不是我们这次跑出来的数字。
+论文按攻击者事先知道多少，分了三个场景。下面这三组是他们在 Llama-2-13B、A100 80GB 上、跨 cloze / role / instruction 三个数据集的汇总，写在 Section VI 的总结里。成功率把「完全抽出」和「抽出一段」都算进去，还原比例是抽出的长度除以总长度。这不是我们这次跑出来的数字。
+
+Table II 里 cloze 明显更难：整段 prompt 的成功率 87%、还原比例 64%；role 和 instruction 的成功率是 100%，还原比例分别是 87% 和 93%。PromptBase 上的模板不规则，本地模型经常把下一个 token 放不进候选列表。超过 90% 的 token 用不到 10 次候选请求；平均值仍然可以到几十、上百，因为少数 token 几乎猜不到，而攻击是逐 token 的，卡死一个，后面就断。Table II 的请求数只数候选请求。Table III 把目标换成 Llama-3-8B 的 GQA（8 个 KV head），role 数据集上三个场景都是 100% 成功、100% 还原。论文的解释是 GQA 把每个 token 的 KV 压小了，同样的显存里受害者前缀更不容易被冲掉。
 
 | 场景 | 攻击者事先知道 | 论文平均 SR | 论文平均 RR |
 | --- | --- | --- | --- |
@@ -120,20 +114,31 @@ M 的实现要说实话。我们用的是 `match_len // M`。前缀长度 4 时�
 
 实际送进调度器的是 `The capital of France is Paris.`。已知前缀 `The capital of France is`，真实后缀 ` Paris.`，侧信道还原 ` Paris.`，逐 token 一致。停止原因 `recovered`。总请求 32：两个 token 各一轮、各 16 个请求（4 个前哑元 + 8 个候选 + 4 个后哑元）。
 
-第一轮送出的候选，按 logit 从高到低，是 `Paris`、`located`、`____`、`what`、`______`、`in`、`__`、`?\n`。真值排在第一。第二轮是 `.`、`,`、`.\n`、`.\n\n`、` and`、换行、两个换行、`?\n`。真值也在这批里。
+第一轮送出的候选，按 logit 从高到低，是 ` Paris`、` located`、` ____`、` what`、` ______`、` in`、` __`、`?\n`。真值排在第一，前面那个空格是分词器自己留的。第二轮是 `.`、`,`、`.\n`、`.\n\n`、` and`、换行、两个换行、`?\n`。真值也在这批里。
 
 这只说明：在这句短提示上，4B 基模的 top-8 盖住了被扣住的 token，于是顺序通道能把它读出来。它不是论文 Table II 的 95% / 81%。
 
+SGLang 用 radix tree 加 LRU 存前缀，再用 LPM 排序。vLLM 那一代是 paged attention 上的 block hash，论文写作时共享还没有被做成同样的默认调度。公有云上的 colocation 是作者留的未来工作：请求可能落不到存着受害者 KV 的那张 GPU，共享就不会发生。他们在本地单卡上证明了机制。
+
 ## 这次复现停在哪里
 
-- 云 VM 到 `4090` 的 TCP/22 超时。用户自己的终端是另一条路径。
-- 调度模型不是 SGLang，也不是 vLLM，没有 A100，没有复现 Table II 的端到端成功率。
-- 顺序通道和计时通道分开记。PROMPTPEEK 的观测是完成顺序。后继工作里用延迟读前缀缓存命中的，是另一条通道。
+- 没有 GPU，没有跑 SGLang，没有跑 vLLM，没有 Llama-2-13B，没有 A100。Table II / Table III 的成功率没有在这里重跑。
+- Qwen3-4B-Base 只做候选生成。谁先被调度，由本仓库的 radix / LPM 模型决定。
+- FCFS 拆掉的是顺序信道。Auditing Prompt Caching 和 SafeKV 讨论的时间差，不在这次测量里。
 
-单元测试不加载 Qwen，15 项都过：`python3 -m unittest tests.test_promptpeek -v`。带基模的轨迹是：
+单元测试不加载 Qwen。2026-11-04 这次是 15 项全部通过：
 
 ```bash
-python3 -m promptpeek.demo --qwen models/Qwen3-4B-Base.Q4_K_M.gguf
+python3 -m unittest tests.test_promptpeek -v
+python3 -m promptpeek.demo
 ```
 
-数字写在 `results/demo_report.json`，终端原文在 `results/demo_run.txt`。GGUF 不进仓库。
+模型文件约 2.4GB，不进 git：
+
+```bash
+mkdir -p models
+wget -O models/Qwen3-4B-Base.Q4_K_M.gguf \
+  https://huggingface.co/mradermacher/Qwen3-4B-Base-GGUF/resolve/main/Qwen3-4B-Base.Q4_K_M.gguf
+```
+
+实测数字在 `results/demo_report.json`。Qwen 那一跑的时间是 2026-11-04 16:53（上海）。调度轨迹同一天下午复核。GGUF 和 `models/` 已被 `.gitignore` 排除。
