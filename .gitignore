@@ -1,0 +1,7 @@
+*.gguf
+models/
+__pycache__/
+*.py[cod]
+.venv/
+*.log
+results/*.log
